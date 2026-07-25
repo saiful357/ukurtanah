@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Ukur Tanah GPS - Auto Loop & Download Hasil</title>
+  <title>Ukur Tanah GPS - Export Gambar & Logo</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * {
@@ -20,15 +20,62 @@
       overflow: hidden;
       background-color: #fff;
     }
+
+    /* Container Hasil yang akan di-download sebagai Gambar */
+    #export-area {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      width: 100%;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    
+    /* HEADER LOGO & JUDUL LAPORAN */
+    #header-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: #1a252f;
+      color: #ffffff;
+      border-bottom: 2px solid #2c3e50;
+    }
+    
+    .logo-icon {
+      font-size: 24px;
+      background: #27ae60;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+    }
+
+    .header-text h1 {
+      font-size: 14px;
+      font-weight: bold;
+      margin: 0;
+      letter-spacing: 0.5px;
+    }
+
+    .header-text p {
+      font-size: 10px;
+      color: #bdc3c7;
+      margin: 0;
+    }
     
     #map {
       flex: 1;
       width: 100%;
+      min-height: 250px;
     }
     
     #panel {
       background: #ffffff;
-      padding: 12px;
+      padding: 10px;
       text-align: center;
       border-top: 2px solid #ddd;
       box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
@@ -37,59 +84,59 @@
     }
     
     .status-text {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: bold;
       color: #856404;
       background-color: #fff3cd;
-      padding: 6px;
+      padding: 5px;
       border-radius: 4px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
     
     .walk-box {
       background: #e7f5ff;
       border: 1px solid #74c0fc;
-      padding: 6px;
+      padding: 5px;
       border-radius: 6px;
-      font-size: 13px;
+      font-size: 12px;
       color: #1864ab;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .info-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 5px;
-      font-size: 12px;
-      margin-bottom: 10px;
+      font-size: 11px;
+      margin-bottom: 8px;
       background: #f8f9fa;
-      padding: 8px;
+      padding: 6px;
       border-radius: 6px;
     }
 
     .info-box span {
       display: block;
-      font-size: 11px;
+      font-size: 10px;
       color: #6c757d;
     }
 
     .info-box b {
-      font-size: 14px;
+      font-size: 13px;
       color: #28a745;
     }
     
     .button-group {
       display: flex;
       gap: 6px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
       flex-wrap: wrap;
     }
     
     button {
       flex: 1;
-      min-width: 100px;
+      min-width: 90px;
       padding: 10px 4px;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: bold;
       border: none;
       border-radius: 6px;
@@ -99,7 +146,7 @@
     
     #btn-tambah { background-color: #28a745; }
     #btn-selesai { background-color: #17a2b8; }
-    #btn-cetak { background-color: #007bff; display: none; }
+    #btn-download { background-color: #20c997; display: none; }
     #btn-reset { background-color: #dc3545; }
     button:disabled { background-color: #cccccc; cursor: not-allowed; }
 
@@ -107,12 +154,12 @@
       width: 100%;
       border-collapse: collapse;
       margin-top: 5px;
-      font-size: 11px;
+      font-size: 10px;
       text-align: left;
     }
     #tabel-rincian th, #tabel-rincian td {
       border: 1px solid #ddd;
-      padding: 5px;
+      padding: 4px;
     }
     #tabel-rincian th {
       background-color: #f2f2f2;
@@ -122,70 +169,79 @@
       text-align: center;
       font-weight: bold;
     }
-
-    /* Style khusus saat halaman dicetak / disimpan PDF */
-    @media print {
-      body { overflow: visible; }
-      #map { height: 450px !important; flex: none; }
-      #panel { max-height: none; overflow: visible; border: none; box-shadow: none; }
-      .button-group, .status-text, .walk-box { display: none !important; }
-    }
   </style>
 </head>
 <body>
 
-  <!-- PETA -->
-  <div id="map"></div>
-
-  <!-- PANEL KONTROL BAWAH -->
-  <div id="panel">
-    <div id="text-status" class="status-text">Mencari Sinyal GPS...</div>
+  <!-- AREA UTAMA YANG AKAN DI-DOWNLOAD SEBAGAI GAMBAR -->
+  <div id="export-area">
     
-    <!-- INDIKATOR JARAK BERJALAN REAL-TIME -->
-    <div class="walk-box" id="box-jalan">
-      🚶 Jarak jalan dari titik terakhir: <b id="jarak-jalan">0.0</b> meter
+    <!-- HEADER LOGO DAN IDENTITAS LOKASI/USAHA -->
+    <div id="header-logo">
+      <div class="logo-icon">🗺️</div>
+      <div class="header-text">
+        <h1>LAPORAN PENGUKURAN TANAH</h1>
+        <p>Sistem Pemetaan Lapangan GPS Real-Time</p>
+      </div>
     </div>
 
-    <!-- GRID INFO HASIL UKUR -->
-    <div class="info-grid">
-      <div class="info-box">
-        <span>Titik Patok</span>
-        <b id="jml-titik">0</b>
+    <!-- PETA -->
+    <div id="map"></div>
+
+    <!-- PANEL KONTROL & TABEL HASIL -->
+    <div id="panel">
+      <div id="text-status" class="status-text">Mencari Sinyal GPS...</div>
+      
+      <!-- INDIKATOR JARAK BERJALAN REAL-TIME -->
+      <div class="walk-box" id="box-jalan">
+        🚶 Jarak jalan dari titik terakhir: <b id="jarak-jalan">0.0</b> meter
       </div>
-      <div class="info-box">
-        <span>Keliling Total</span>
-        <b id="total-jarak">0</b> m
+
+      <!-- GRID INFO HASIL UKUR -->
+      <div class="info-grid">
+        <div class="info-box">
+          <span>Titik Patok</span>
+          <b id="jml-titik">0</b>
+        </div>
+        <div class="info-box">
+          <span>Keliling Total</span>
+          <b id="total-jarak">0</b> m
+        </div>
+        <div class="info-box">
+          <span>Luas Area</span>
+          <b id="luas-tanah">0</b> m²
+        </div>
       </div>
-      <div class="info-box">
-        <span>Luas Area</span>
-        <b id="luas-tanah">0</b> m²
+      
+      <div class="button-group">
+        <button id="btn-tambah" onclick="tambahTitik()" disabled>+ Titik Baru</button>
+        <button id="btn-selesai" onclick="kembaliKeTitikNol()" disabled>🏁 Kembali Titik 0</button>
+        <button id="btn-download" onclick="downloadSebagaiGambar()">📸 Simpan Gambar ke HP</button>
+        <button id="btn-reset" onclick="resetAplikasi()">Reset</button>
       </div>
-    </div>
-    
-    <div class="button-group">
-      <button id="btn-tambah" onclick="tambahTitik()" disabled>+ Titik Baru</button>
-      <button id="btn-selesai" onclick="kembaliKeTitikNol()" disabled>🏁 Kembali Titik 0</button>
-      <button id="btn-cetak" onclick="cetakHasil()">📸 Simpan Gambar</button>
-      <button id="btn-reset" onclick="resetAplikasi()">Reset</button>
+
+      <!-- TABEL RINCIAN -->
+      <table id="tabel-rincian">
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>Panjang Sisi</th>
+            <th>Latitude</th>
+            <th>Longitude</th>
+          </tr>
+        </thead>
+        <tbody id="body-rincian">
+        </tbody>
+      </table>
     </div>
 
-    <!-- TABEL RINCIAN -->
-    <table id="tabel-rincian">
-      <thead>
-        <tr>
-          <th>No</th>
-          <th>Panjang Sisi</th>
-          <th>Latitude</th>
-          <th>Longitude</th>
-        </tr>
-      </thead>
-      <tbody id="body-rincian">
-      </tbody>
-    </table>
   </div>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+  <!-- Library untuk Mengkonversi Tampilan HTML Menjadi Gambar PNG -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <script>
     var map;
@@ -196,10 +252,10 @@
     var posisiSekarang = null;
     var isSelesai = false;
 
-    // Layer Satelit & Jalan
-    var petaJalan = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+    // Layer Satelit
     var petaSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: 'Tiles &copy; Esri',
+      crossOrigin: true,
       maxZoom: 19
     });
 
@@ -209,13 +265,7 @@
       layers: [petaSatelit]
     });
 
-    var baseMaps = {
-      "Satelit Berwarna": petaSatelit,
-      "Peta Jalan": petaJalan
-    };
-    L.control.layers(baseMaps).addTo(map);
-
-    // Deteksi GPS
+    // Deteksi GPS HP
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(
         function(position) {
@@ -242,7 +292,7 @@
             userMarker.setLatLng(posisiSekarang);
           }
 
-          // Hitung jarak real-time dari titik terakhir
+          // Real-time calculation dari titik terakhir
           if (daftarTitik.length > 0) {
             var titikTerakhir = daftarTitik[daftarTitik.length - 1];
             var p1 = turf.point([titikTerakhir[1], titikTerakhir[0]]);
@@ -250,13 +300,13 @@
             var jarakJalan = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
             document.getElementById('jarak-jalan').innerText = jarakJalan.toFixed(1);
 
-            // Cek Otomatis: Jika jarak ke Titik Nol (Titik 1) sudah kurang dari 3 meter
+            // Auto closing jika jarak ke Titik 0 kurang dari 3 meter
             var titikAwal = daftarTitik[0];
             var pAwal = turf.point([titikAwal[1], titikAwal[0]]);
             var jarakKeTitikAwal = turf.distance(p2, pAwal, {units: 'kilometers'}) * 1000;
 
             if (daftarTitik.length >= 3 && jarakKeTitikAwal < 3.0) {
-              statusEl.innerText = "🎯 Anda sudah kembali di Titik Nol! Otomatis menutup area...";
+              statusEl.innerText = "🎯 Anda sudah di Titik Nol! Otomatis menyelesaikan...";
               kembaliKeTitikNol();
               return;
             }
@@ -294,11 +344,8 @@
 
       daftarTitik.push(titikBaru);
 
-      // Tandai Titik Nol dengan warna khusus hijau, titik lainnya kuning
       var warnaDot = (daftarTitik.length === 1) ? '#00ff00' : '#ffff00';
-      L.circleMarker(titikBaru, { color: 'red', radius: 7, fillColor: warnaDot, fillOpacity: 1 })
-       .bindPopup(daftarTitik.length === 1 ? "<b>Titik 0 (Awal)</b>" : "Titik " + daftarTitik.length)
-       .addTo(map);
+      L.circleMarker(titikBaru, { color: 'red', radius: 7, fillColor: warnaDot, fillOpacity: 1 }).addTo(map);
 
       if (lineLive) map.removeLayer(lineLive);
       document.getElementById('jarak-jalan').innerText = "0.0";
@@ -308,43 +355,36 @@
       updateKalkulasi();
     }
 
-    // Fungsi Kunci: Menutup Area Kembali ke Titik 0
     function kembaliKeTitikNol() {
       if (daftarTitik.length < 3 || isSelesai) return;
 
       isSelesai = true;
 
-      // Hitung jarak dari titik terakhir kembali ke Titik 0
       var titikTerakhir = daftarTitik[daftarTitik.length - 1];
       var titikAwal = daftarTitik[0];
       var p1 = turf.point([titikTerakhir[1], titikTerakhir[0]]);
       var p2 = turf.point([titikAwal[1], titikAwal[0]]);
       var jarakPenutup = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
 
-      // Tambahkan baris penutup ke tabel
       tambahBarisTabel("0 (Selesai)", jarakPenutup, titikAwal[0], titikAwal[1]);
 
       if (lineLive) map.removeLayer(lineLive);
-      
-      // Update Polygon akhir dengan warna hijau transparan
       if (polygonArea) map.removeLayer(polygonArea);
+
       polygonArea = L.polygon(daftarTitik, { color: '#00ff00', weight: 4, fillColor: '#ffff00', fillOpacity: 0.5 }).addTo(map);
-      
-      // Zoom peta agar seluruh bidang tanah terlihat pas di layar
       map.fitBounds(polygonArea.getBounds(), { padding: [30, 30] });
 
       updateKalkulasi();
 
-      // Atur status UI Selesai
       var statusEl = document.getElementById('text-status');
-      statusEl.innerText = "✅ PENGUKURAN SELESAI! Hasil Siap Disimpan.";
+      statusEl.innerText = "✅ PENGUKURAN SELESAI!";
       statusEl.style.backgroundColor = "#d4edda";
       statusEl.style.color = "#155724";
 
       document.getElementById('box-jalan').style.display = 'none';
       document.getElementById('btn-tambah').style.display = 'none';
       document.getElementById('btn-selesai').style.display = 'none';
-      document.getElementById('btn-cetak').style.display = 'inline-block';
+      document.getElementById('btn-download').style.display = 'inline-block';
     }
 
     function tambahBarisTabel(no, jarak, lat, lng) {
@@ -381,9 +421,36 @@
       }
     }
 
-    // Fungsi Simpan Gambar / Cetak PDF Laporan Hasil
-    function cetakHasil() {
-      window.print();
+    // FUNGSI UTAMA: MENYIMPAN HASIL SEBAGAI GAMBAR PNG LANGSUNG KE HP
+    function downloadSebagaiGambar() {
+      var btnDownload = document.getElementById('btn-download');
+      btnDownload.innerText = "⏳ Memproses Gambar...";
+      btnDownload.disabled = true;
+
+      // Ambil elemen seluruh laporan
+      var exportElement = document.getElementById('export-area');
+
+      html2canvas(exportElement, {
+        useCORS: true,
+        allowTaint: true,
+        scale: 2 // Kualitas gambar tinggi
+      }).then(function(canvas) {
+        // Buat file PNG dan unduh otomatis ke HP
+        var imageURI = canvas.toDataURL("image/png");
+        var link = document.createElement('a');
+        link.download = 'Laporan_Ukuran_Tanah_' + new Date().toISOString().slice(0,10) + '.png';
+        link.href = imageURI;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        btnDownload.innerText = "📸 Simpan Gambar ke HP";
+        btnDownload.disabled = false;
+      }).catch(function(err) {
+        alert("Gagal mengunduh gambar. Silakan gunakan tangkapan layar (screenshot) HP Anda.");
+        btnDownload.innerText = "📸 Simpan Gambar ke HP";
+        btnDownload.disabled = false;
+      });
     }
 
     function resetAplikasi() {
