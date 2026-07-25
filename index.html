@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Ukur Tanah GPS</title>
+  <title>Ukur Tanah GPS - Rincian</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * {
@@ -22,17 +22,19 @@
     
     /* Area Peta (Mengambil sisa ruang di atas) */
     #map {
-      flex: 1;
+      flex: 1; /* Peta mengambil ruang yang tersedia */
       width: 100%;
     }
     
-    /* Area Panel Tombol (Di bawah, tidak akan terpotong) */
+    /* Area Panel Bawah - Bisa di-scroll */
     #panel {
       background: #ffffff;
       padding: 12px;
       text-align: center;
       border-top: 2px solid #ddd;
       box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+      max-height: 40%; /* Maksimal tinggi panel 40% dari layar */
+      overflow-y: auto; /* Aktifkan scroll vertikal jika konten penuh */
     }
     
     .status-text {
@@ -48,11 +50,15 @@
     .info-text {
       font-size: 14px;
       margin-bottom: 10px;
+      display: flex;
+      justify-content: space-around;
+      font-weight: bold;
     }
     
     .button-group {
       display: flex;
       gap: 8px;
+      margin-bottom: 15px;
     }
     
     button {
@@ -69,6 +75,27 @@
     #btn-tambah { background-color: #28a745; }
     #btn-reset { background-color: #dc3545; }
     button:disabled { background-color: #cccccc; cursor: not-allowed; }
+
+    /* Gaya Tabel Rincian Koordinat */
+    #tabel-rincian {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 12px;
+      text-align: left;
+    }
+    #tabel-rincian th, #tabel-rincian td {
+      border: 1px solid #ddd;
+      padding: 6px;
+    }
+    #tabel-rincian th {
+      background-color: #f2f2f2;
+      text-align: center;
+    }
+    #tabel-rincian td:first-child {
+      text-align: center;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -81,13 +108,28 @@
     <div id="text-status" class="status-text">Mencari Sinyal GPS...</div>
     
     <div class="info-text">
-      Titik: <b id="jml-titik">0</b> | Luas: <b id="luas-tanah">0</b> m²
+      <div>Titik: <span id="jml-titik">0</span></div>
+      <div>Luas: <b id="luas-tanah">0</b> m²</div>
     </div>
     
     <div class="button-group">
       <button id="btn-tambah" onclick="tambahTitik()" disabled>+ Tandai Titik Ini</button>
       <button id="btn-reset" onclick="resetAplikasi()">Reset</button>
     </div>
+
+    <!-- AREA TABEL RINCIAN KOORDINAT (SEPERTI GAMBAR) -->
+    <table id="tabel-rincian">
+      <thead>
+        <tr>
+          <th>No</th>
+          <th>Latitude (Lintang)</th>
+          <th>Longitude (Bujur)</th>
+        </tr>
+      </thead>
+      <tbody id="body-rincian">
+        <!-- Data titik akan muncul di sini -->
+      </tbody>
+    </table>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -149,14 +191,29 @@
 
       L.circleMarker(posisiSekarang, { color: 'red', radius: 6, fillColor: '#f03', fillOpacity: 0.8 }).addTo(map);
 
+      // Update Angka Titik di Header
       document.getElementById('jml-titik').innerText = daftarTitik.length;
 
+      // --- BAGIAN BARU: MENAMBAHKAN BARIS KE TABEL RINCIAN ---
+      var tbody = document.getElementById('body-rincian');
+      var row = tbody.insertRow(); // Tambah baris baru di bawah
+      var cellNo = row.insertCell(0);
+      var cellLat = row.insertCell(1);
+      var cellLng = row.insertCell(2);
+
+      cellNo.innerHTML = daftarTitik.length;
+      cellLat.innerHTML = posisiSekarang[0].toFixed(8); // Tampilkan 8 angka di belakang koma
+      cellLng.innerHTML = posisiSekarang[1].toFixed(8);
+      // -----------------------------------------------------
+
+      // Gambar / Update Area Poligon
       if (polygonArea) map.removeLayer(polygonArea);
 
       if (daftarTitik.length >= 2) {
         polygonArea = L.polygon(daftarTitik, { color: 'blue' }).addTo(map);
       }
 
+      // Hitung Luas jika titik >= 3
       if (daftarTitik.length >= 3) {
         var turfPoints = daftarTitik.map(function(pt) { return [pt[1], pt[0]]; });
         turfPoints.push(turfPoints[0]);
