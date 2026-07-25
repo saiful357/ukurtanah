@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Aplikasi Ukur Tanah GPS</title>
   
-  <!-- CSS Leaflet (Peta) -->
+  <!-- CSS Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   
   <style>
@@ -30,9 +30,17 @@
       box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
       text-align: center;
     }
+    .status-bar {
+      font-size: 13px;
+      padding: 6px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      background: #fff3cd;
+      color: #856404;
+    }
     .info {
       margin-bottom: 12px;
-      font-size: 16px;
+      font-size: 15px;
     }
     .btn-group {
       display: flex;
@@ -40,7 +48,7 @@
       justify-content: center;
     }
     button {
-      padding: 12px 18px;
+      padding: 12px 16px;
       border: none;
       border-radius: 8px;
       font-weight: bold;
@@ -50,122 +58,144 @@
     }
     .btn-add { background-color: #28a745; }
     .btn-reset { background-color: #dc3545; }
-    button:disabled { background-color: #cccccc; }
+    button:disabled { background-color: #cccccc; cursor: not-allowed; }
   </style>
 </head>
 <body>
 
-  <!-- Area Peta -->
   <div id="map"></div>
 
-  <!-- Panel Kontrol -->
   <div class="panel">
+    <!-- Indikator Status GPS -->
+    <div id="status" class="status-bar">Mencari Sinyal GPS...</div>
+
     <div class="info">
-      <strong>Titik Terkumpul:</strong> <span id="point-count">0</span> | 
+      <strong>Titik:</strong> <span id="point-count">0</span> | 
       <strong>Luas:</strong> <span id="area-result">0</span> m²
     </div>
+    
     <div class="btn-group">
-      <button class="btn-add" onclick="tambahTitik()">+ Tandai Titik Ini</button>
+      <button id="btn-add-point" class="btn-add" onclick="tambahTitik()" disabled>+ Tandai Titik Ini</button>
       <button class="btn-reset" onclick="resetPeta()">Reset</button>
     </div>
   </div>
 
-  <!-- JS Leaflet & Turf.js (Pustaka Geometris) -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
 
   <script>
     let map, markerUser, polygon;
-    let titikKoordinat = []; // Menyimpan [lat, lng]
+    let titikKoordinat = [];
     let currentPos = null;
 
-    // 1. Inisialisasi Peta
     function initMap() {
-      // Default koordinat Jakarta jika GPS belum aktif
+      // Set tampilan default dulu
       map = L.map('map').setView([-6.200000, 106.816666], 15);
 
-      // Menggunakan layer peta gratis OpenStreetMap
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '© OpenStreetMap'
       }).addTo(map);
 
-      // Jalankan pelacakan lokasi GPS HP
       lacakLokasi();
     }
 
-    // 2. Mendapatkan Lokasi GPS Pengguna Secara Real-Time
-    function lacakLokasi() {
-      if ("geolocation" in navigator) {
-        navigator.geolocation.watchPosition(
-          (position) => {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            currentPos = [lat, lng];
-
-            // Tampilkan atau update marker lokasi pengguna
-            if (!markerUser) {
-              markerUser = L.marker(currentPos).addTo(map).bindPopup("Lokasi Kamu Saat Ini");
-              map.setView(currentPos, 18); // Zoom ke lokasi
-            } else {
-              markerUser.setLatLng(currentPos);
-            }
-          },
-          (error) => {
-            alert("Gagal mengambil lokasi GPS. Pastikan izin lokasi aktif!");
-          },
-          { enableHighAccuracy: true, maximumAge: 1000 }
-        );
+    function updateStatus(pesan, warnaKuning = true) {
+      const el = document.getElementById('status');
+      el.innerText = pesan;
+      if (warnaKuning) {
+        el.style.background = '#fff3cd';
+        el.style.color = '#856404';
       } else {
-        alert("Browser HP kamu tidak mendukung fitur Geolocation.");
+        el.style.background = '#d4edda';
+        el.style.color = '#155724';
       }
     }
 
-    // 3. Menambah Titik Patok Tanah
-    function tambahTitik() {
-      if (!currentPos) {
-        alert("Sedang mencari lokasi GPS kamu... Mohon tunggu sejenak.");
+    function lacakLokasi() {
+      if (!navigator.geolocation) {
+        updateStatus("Browser tidak mendukung GPS.");
         return;
       }
 
+      const options = {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      };
+
+      navigator.geolocation.watchPosition(
+        (position) => {
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          const acc = Math.round(position.coords.accuracy);
+          currentPos = [lat, lng];
+
+          // Aktifkan tombol tambah titik jika GPS sudah didapat
+          document.getElementById('btn-add-point').disabled = false;
+          updateStatus(`GPS Aktif (Akurasi: ±${acc} meter)`, false);
+
+          // Update atau buat ikon posisi user
+          if (!markerUser) {
+            markerUser = L.marker(currentPos).addTo(map).bindPopup("Lokasi Kamu").openPopup();
+            map.setView(currentPos, 18);
+          } else {
+            markerUser.setLatLng(currentPos);
+          }
+        },
+        (error) => {
+          let erMsg = "Gagal mengambil lokasi.";
+          switch(error.code) {
+            case error.PERMISSION_DENIED:
+              erMsg = "Izin GPS Ditolak! Izinkan akses lokasi di browser HP kamu.";
+              break;
+            case error.POSITION_UNAVAILABLE:
+              erMsg = "Sinyal GPS tidak tersedia. Coba ke luar ruangan/area terbuka.";
+              break;
+            case error.TIMEOUT:
+              erMsg = "GPS Timeout. Mengambil ulang sinyal...";
+              break;
+          }
+          updateStatus(erMsg);
+        },
+        options
+      );
+    }
+
+    function tambahTitik() {
+      if (!currentPos) return;
       titikKoordinat.push(currentPos);
+      
+      // Tambah pin di peta untuk setiap titik tanah yang ditandai
+      L.circleMarker(currentPos, { radius: 6, color: 'red', fillColor: '#f03', fillOpacity: 0.8 }).addTo(map);
+      
       updateAplikasi();
     }
 
-    // 4. Update Gambar Garis/Area dan Hitung Luas
     function updateAplikasi() {
       document.getElementById('point-count').innerText = titikKoordinat.length;
 
-      // Hapus polygon lama jika ada
       if (polygon) map.removeLayer(polygon);
 
-      // Gambar area (Polygon) baru jika titik >= 2
       if (titikKoordinat.length >= 2) {
         polygon = L.polygon(titikKoordinat, { color: 'blue', fillColor: '#3085d6', fillOpacity: 0.4 }).addTo(map);
       }
 
-      // Hitung Luas jika titik >= 3 (Sudah membentuk area tertutup)
       if (titikKoordinat.length >= 3) {
-        // Format koordinat ke format GeoJSON Turf.js ([lng, lat])
         const turfPoints = titikKoordinat.map(pt => [pt[1], pt[0]]);
-        turfPoints.push(turfPoints[0]); // Tutup loop polygon
+        turfPoints.push(turfPoints[0]);
 
         const polyGeoJSON = turf.polygon([turfPoints]);
-        const areaInMeters = turf.area(polyGeoJSON); // Hitung m²
+        const areaInMeters = turf.area(polyGeoJSON);
 
         document.getElementById('area-result').innerText = areaInMeters.toFixed(2);
       }
     }
 
-    // 5. Reset Ulang Pengukuran
     function resetPeta() {
-      titikKoordinat = [];
-      if (polygon) map.removeLayer(polygon);
-      document.getElementById('point-count').innerText = '0';
-      document.getElementById('area-result').innerText = '0';
+      location.reload(); // Refresh halaman untuk reset penuh
     }
 
-    // Jalankan aplikasi saat halaman dimuat
     window.onload = initMap;
   </script>
 </body>
