@@ -2,38 +2,62 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Ukur Tanah GPS</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    html, body {
-      height: 100%;
+    * {
+      box-sizing: border-box;
       margin: 0;
       padding: 0;
+      font-family: Arial, sans-serif;
     }
+    html, body {
+      height: 100%;
+      width: 100%;
+      display: flex;
+      flex-direction: column; /* Membagi layar atas & bawah */
+      overflow: hidden;
+    }
+    
+    /* Area Peta (Mengambil sisa ruang di atas) */
     #map {
-      height: calc(100vh - 120px);
+      flex: 1;
       width: 100%;
     }
+    
+    /* Area Panel Tombol (Di bawah, tidak akan terpotong) */
     #panel {
-      height: 120px;
       background: #ffffff;
-      padding: 10px;
+      padding: 12px;
       text-align: center;
-      border-top: 2px solid #ccc;
+      border-top: 2px solid #ddd;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
     }
-    .status {
-      font-size: 13px;
+    
+    .status-text {
+      font-size: 12px;
       font-weight: bold;
-      color: #333;
+      color: #856404;
+      background-color: #fff3cd;
+      padding: 6px;
+      border-radius: 4px;
       margin-bottom: 8px;
     }
-    .info {
-      font-size: 15px;
+    
+    .info-text {
+      font-size: 14px;
       margin-bottom: 10px;
     }
+    
+    .button-group {
+      display: flex;
+      gap: 8px;
+    }
+    
     button {
-      padding: 10px 15px;
+      flex: 1;
+      padding: 12px 5px;
       font-size: 14px;
       font-weight: bold;
       border: none;
@@ -41,24 +65,29 @@
       color: white;
       cursor: pointer;
     }
-    #btn-tambah { background: #28a745; }
-    #btn-reset { background: #dc3545; }
-    button:disabled { background: #aaaaaa; }
+    
+    #btn-tambah { background-color: #28a745; }
+    #btn-reset { background-color: #dc3545; }
+    button:disabled { background-color: #cccccc; cursor: not-allowed; }
   </style>
 </head>
 <body>
 
-  <!-- Area Peta -->
+  <!-- PETA -->
   <div id="map"></div>
 
-  <!-- Area Tombol & Info di Bawah Peta -->
+  <!-- PANEL KONTROL BAWAH -->
   <div id="panel">
-    <div id="text-status" class="status">Menunggu Sinyal GPS...</div>
-    <div class="info">
-      Titik: <span id="jml-titik">0</span> | Luas: <span id="luas-tanah">0</span> m²
+    <div id="text-status" class="status-text">Mencari Sinyal GPS...</div>
+    
+    <div class="info-text">
+      Titik: <b id="jml-titik">0</b> | Luas: <b id="luas-tanah">0</b> m²
     </div>
-    <button id="btn-tambah" onclick="tambahTitik()" disabled>+ Tandai Titik Ini</button>
-    <button id="btn-reset" onclick="resetAplikasi()">Reset</button>
+    
+    <div class="button-group">
+      <button id="btn-tambah" onclick="tambahTitik()" disabled>+ Tandai Titik Ini</button>
+      <button id="btn-reset" onclick="resetAplikasi()">Reset</button>
+    </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -71,13 +100,13 @@
     var daftarTitik = [];
     var posisiSekarang = null;
 
-    // 1. Inisialisasi Peta
+    // Inisialisasi Peta
     map = L.map('map').setView([-6.200000, 106.816666], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19
     }).addTo(map);
 
-    // 2. Ambil GPS HP
+    // Ambil GPS HP
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(
         function(position) {
@@ -85,12 +114,15 @@
           var lng = position.coords.longitude;
           posisiSekarang = [lat, lng];
 
-          // Aktifkan tombol "+ Tandai Titik Ini"
-          document.getElementById('btn-tambah').disabled = false;
-          document.getElementById('text-status').innerText = "GPS Terhubung! Silakan Berdiri di Patok Tanah.";
-          document.getElementById('text-status').style.color = "green";
+          // Aktifkan tombol hijau
+          var btnTambah = document.getElementById('btn-tambah');
+          btnTambah.disabled = false;
+          
+          var statusEl = document.getElementById('text-status');
+          statusEl.innerText = "GPS Aktif! Berdirilah di sudut/patok tanah.";
+          statusEl.style.backgroundColor = "#d4edda";
+          statusEl.style.color = "#155724";
 
-          // Buat / Update Penanda Lokasi Pengguna
           if (!userMarker) {
             userMarker = L.marker(posisiSekarang).addTo(map);
             map.setView(posisiSekarang, 18);
@@ -99,34 +131,32 @@
           }
         },
         function(error) {
-          document.getElementById('text-status').innerText = "Gagal Akses GPS! Izinkan Akses Lokasi di Browser HP.";
-          document.getElementById('text-status').style.color = "red";
+          var statusEl = document.getElementById('text-status');
+          statusEl.innerText = "Gagal Akses GPS. Pastikan Izin Lokasi di Browser HP Aktif!";
+          statusEl.style.backgroundColor = "#f8d7da";
+          statusEl.style.color = "#721c24";
         },
         { enableHighAccuracy: true, timeout: 15000 }
       );
     } else {
-      document.getElementById('text-status').innerText = "Browser HP Tidak Mendukung GPS.";
+      document.getElementById('text-status').innerText = "Browser Tidak Mendukung GPS.";
     }
 
-    // 3. Fungsi Tambah Titik
+    // Fungsi Tambah Titik
     function tambahTitik() {
       if (!posisiSekarang) return;
       daftarTitik.push(posisiSekarang);
 
-      // Gambar titik lingkaran merah
-      L.circleMarker(posisiSekarang, { color: 'red', radius: 5 }).addTo(map);
+      L.circleMarker(posisiSekarang, { color: 'red', radius: 6, fillColor: '#f03', fillOpacity: 0.8 }).addTo(map);
 
-      // Update Angka Titik
       document.getElementById('jml-titik').innerText = daftarTitik.length;
 
-      // Gambar Area
       if (polygonArea) map.removeLayer(polygonArea);
 
       if (daftarTitik.length >= 2) {
         polygonArea = L.polygon(daftarTitik, { color: 'blue' }).addTo(map);
       }
 
-      // Hitung Luas jika titik >= 3
       if (daftarTitik.length >= 3) {
         var turfPoints = daftarTitik.map(function(pt) { return [pt[1], pt[0]]; });
         turfPoints.push(turfPoints[0]);
@@ -138,7 +168,7 @@
       }
     }
 
-    // 4. Reset
+    // Reset
     function resetAplikasi() {
       location.reload();
     }
