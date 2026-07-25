@@ -2,81 +2,80 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Aplikasi Ukur Tanah GPS</title>
   
-  <!-- CSS Leaflet -->
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: Arial, sans-serif;
-    }
-    body {
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-    #map {
-      flex: 1;
-      width: 100%;
-    }
-    .panel {
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+    body, html { width: 100%; height: 100%; overflow: hidden; }
+    #map { width: 100%; height: 100vh; z-index: 1; }
+
+    /* Panel mengambang di atas peta */
+    .floating-panel {
+      position: absolute;
+      bottom: 20px;
+      left: 5%;
+      right: 5%;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
       padding: 15px;
-      background: #ffffff;
-      box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
       text-align: center;
     }
-    .status-bar {
-      font-size: 13px;
+
+    .status-box {
+      font-size: 12px;
       padding: 6px;
-      margin-bottom: 8px;
-      border-radius: 4px;
+      margin-bottom: 10px;
+      border-radius: 6px;
       background: #fff3cd;
       color: #856404;
+      font-weight: bold;
     }
-    .info {
+
+    .info-box {
+      font-size: 14px;
       margin-bottom: 12px;
-      font-size: 15px;
     }
+
     .btn-group {
       display: flex;
       gap: 10px;
-      justify-content: center;
     }
-    button {
-      padding: 12px 16px;
+
+    .btn {
+      flex: 1;
+      padding: 12px 5px;
       border: none;
       border-radius: 8px;
       font-weight: bold;
       font-size: 14px;
-      cursor: pointer;
       color: white;
+      cursor: pointer;
     }
-    .btn-add { background-color: #28a745; }
-    .btn-reset { background-color: #dc3545; }
-    button:disabled { background-color: #cccccc; cursor: not-allowed; }
+
+    .btn-add { background: #28a745; }
+    .btn-reset { background: #dc3545; }
+    .btn:disabled { background: #ccc; cursor: not-allowed; }
   </style>
 </head>
 <body>
 
   <div id="map"></div>
 
-  <div class="panel">
-    <!-- Indikator Status GPS -->
-    <div id="status" class="status-bar">Mencari Sinyal GPS...</div>
-
-    <div class="info">
-      <strong>Titik:</strong> <span id="point-count">0</span> | 
-      <strong>Luas:</strong> <span id="area-result">0</span> m²
+  <!-- Panel kontrol mengambang -->
+  <div class="floating-panel">
+    <div id="status" class="status-box">Mencari Sinyal GPS...</div>
+    <div class="info-box">
+      Titik: <b id="point-count">0</b> | Luas: <b id="area-result">0</b> m²
     </div>
-    
     <div class="btn-group">
-      <button id="btn-add-point" class="btn-add" onclick="tambahTitik()" disabled>+ Tandai Titik Ini</button>
-      <button class="btn-reset" onclick="resetPeta()">Reset</button>
+      <button id="btn-add" class="btn btn-add" onclick="tambahTitik()" disabled>+ Tandai Titik</button>
+      <button class="btn btn-reset" onclick="resetPeta()">Reset</button>
     </div>
   </div>
 
@@ -89,76 +88,59 @@
     let currentPos = null;
 
     function initMap() {
-      // Set tampilan default dulu
-      map = L.map('map').setView([-6.200000, 106.816666], 15);
+      map = L.map('map', { zoomControl: false }).setView([-6.200000, 106.816666], 15);
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap'
+        maxZoom: 19
       }).addTo(map);
 
       lacakLokasi();
     }
 
-    function updateStatus(pesan, warnaKuning = true) {
+    function setStatus(pesan, sukses = false) {
       const el = document.getElementById('status');
       el.innerText = pesan;
-      if (warnaKuning) {
-        el.style.background = '#fff3cd';
-        el.style.color = '#856404';
-      } else {
+      if (sukses) {
         el.style.background = '#d4edda';
         el.style.color = '#155724';
+      } else {
+        el.style.background = '#fff3cd';
+        el.style.color = '#856404';
       }
     }
 
     function lacakLokasi() {
       if (!navigator.geolocation) {
-        updateStatus("Browser tidak mendukung GPS.");
+        setStatus("Browser HP tidak mendukung GPS");
         return;
       }
 
-      const options = {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0
-      };
-
       navigator.geolocation.watchPosition(
-        (position) => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-          const acc = Math.round(position.coords.accuracy);
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const acc = Math.round(pos.coords.accuracy);
           currentPos = [lat, lng];
 
-          // Aktifkan tombol tambah titik jika GPS sudah didapat
-          document.getElementById('btn-add-point').disabled = false;
-          updateStatus(`GPS Aktif (Akurasi: ±${acc} meter)`, false);
+          // Aktifkan tombol "+ Tandai Titik" saat lokasi terkunci
+          document.getElementById('btn-add').disabled = false;
+          setStatus(`GPS Aktif (Akurasi: ±${acc}m)`, true);
 
-          // Update atau buat ikon posisi user
           if (!markerUser) {
-            markerUser = L.marker(currentPos).addTo(map).bindPopup("Lokasi Kamu").openPopup();
+            markerUser = L.marker(currentPos).addTo(map);
             map.setView(currentPos, 18);
           } else {
             markerUser.setLatLng(currentPos);
           }
         },
-        (error) => {
-          let erMsg = "Gagal mengambil lokasi.";
-          switch(error.code) {
-            case error.PERMISSION_DENIED:
-              erMsg = "Izin GPS Ditolak! Izinkan akses lokasi di browser HP kamu.";
-              break;
-            case error.POSITION_UNAVAILABLE:
-              erMsg = "Sinyal GPS tidak tersedia. Coba ke luar ruangan/area terbuka.";
-              break;
-            case error.TIMEOUT:
-              erMsg = "GPS Timeout. Mengambil ulang sinyal...";
-              break;
+        (err) => {
+          if(err.code === 1) {
+            setStatus("Izin GPS Ditolak! Cek Pengaturan Browser HP.");
+          } else {
+            setStatus("Mencari Sinyal GPS... Pastikan di luar ruangan.");
           }
-          updateStatus(erMsg);
         },
-        options
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     }
 
@@ -166,13 +148,13 @@
       if (!currentPos) return;
       titikKoordinat.push(currentPos);
       
-      // Tambah pin di peta untuk setiap titik tanah yang ditandai
+      // Beri tanda berupa lingkaran di peta
       L.circleMarker(currentPos, { radius: 6, color: 'red', fillColor: '#f03', fillOpacity: 0.8 }).addTo(map);
       
-      updateAplikasi();
+      updatePengukuran();
     }
 
-    function updateAplikasi() {
+    function updatePengukuran() {
       document.getElementById('point-count').innerText = titikKoordinat.length;
 
       if (polygon) map.removeLayer(polygon);
@@ -193,7 +175,7 @@
     }
 
     function resetPeta() {
-      location.reload(); // Refresh halaman untuk reset penuh
+      location.reload();
     }
 
     window.onload = initMap;
