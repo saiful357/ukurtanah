@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Ukur Tanah GPS - Realtime Step</title>
+  <title>Ukur Tanah GPS - Satelit Berwarna</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * {
@@ -177,15 +177,32 @@
     var map;
     var userMarker;
     var polygonArea;
-    var lineLive; // Garis sementara saat berjalan
+    var lineLive;
     var daftarTitik = [];
     var posisiSekarang = null;
 
-    // Inisialisasi Peta
-    map = L.map('map').setView([-6.200000, 106.816666], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // 1. OPSI LAYER PETA (SATELIT & JALAN)
+    var petaJalan = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+    
+    // Satelit Berwarna menggunakan Esri World Imagery (Foto Udara Berwarna)
+    var petaSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri',
       maxZoom: 19
-    }).addTo(map);
+    });
+
+    // Inisialisasi Peta dengan Peta Satelit secara bawaan (Default)
+    map = L.map('map', {
+      center: [-6.200000, 106.816666],
+      zoom: 15,
+      layers: [petaSatelit] // Default satelit berwarna
+    });
+
+    // Menambahkan tombol ganti mode peta di pojok kanan atas
+    var baseMaps = {
+      "Satelit Berwarna": petaSatelit,
+      "Peta Jalan biasa": petaJalan
+    };
+    L.control.layers(baseMaps).addTo(map);
 
     // Ambil GPS HP secara Real-Time
     if (navigator.geolocation) {
@@ -217,16 +234,15 @@
             var p1 = turf.point([titikTerakhir[1], titikTerakhir[0]]);
             var p2 = turf.point([lng, lat]);
             
-            // Hitung meter
             var jarakJalan = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
             document.getElementById('jarak-jalan').innerText = jarakJalan.toFixed(1);
 
-            // Gambar garis putus-putus biru secara langsung mengikuti langkah kaki
+            // Garis putus-putus berwarna kuning terang agar mencolok di atas foto satelit
             if (lineLive) map.removeLayer(lineLive);
             lineLive = L.polyline([titikTerakhir, posisiSekarang], {
-              color: '#1864ab',
-              weight: 3,
-              dashArray: '5, 10'
+              color: '#ffff00',
+              weight: 4,
+              dashArray: '6, 8'
             }).addTo(map);
           }
         },
@@ -247,7 +263,6 @@
       var titikBaru = posisiSekarang;
       var jarakSisi = 0;
 
-      // Ambil jarak dari indikator berjalan saat ini
       if (daftarTitik.length > 0) {
         var titikLama = daftarTitik[daftarTitik.length - 1];
         var p1 = turf.point([titikLama[1], titikLama[0]]);
@@ -257,10 +272,9 @@
 
       daftarTitik.push(titikBaru);
 
-      // Gambar titik merah di patok
-      L.circleMarker(titikBaru, { color: 'red', radius: 6, fillColor: '#f03', fillOpacity: 0.8 }).addTo(map);
+      // Gambar titik lingkaran kuning mencolok dengan pinggiran merah
+      L.circleMarker(titikBaru, { color: 'red', radius: 7, fillColor: '#ffff00', fillOpacity: 1 }).addTo(map);
 
-      // Reset garis sementara setelah titik ditandai
       if (lineLive) map.removeLayer(lineLive);
       document.getElementById('jarak-jalan').innerText = "0.0";
 
@@ -283,7 +297,8 @@
       if (polygonArea) map.removeLayer(polygonArea);
 
       if (daftarTitik.length >= 2) {
-        polygonArea = L.polygon(daftarTitik, { color: 'blue' }).addTo(map);
+        // Poligon berwarna kuning dengan garis batas merah agar sangat kontras di foto satelit
+        polygonArea = L.polygon(daftarTitik, { color: 'red', weight: 3, fillColor: '#ffff00', fillOpacity: 0.4 }).addTo(map);
       }
 
       var turfPoints = daftarTitik.map(function(pt) { return [pt[1], pt[0]]; });
