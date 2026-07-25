@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Ukur Tanah GPS - Rincian</title>
+  <title>Ukur Tanah GPS - Lengkap</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * {
@@ -16,25 +16,23 @@
       height: 100%;
       width: 100%;
       display: flex;
-      flex-direction: column; /* Membagi layar atas & bawah */
+      flex-direction: column;
       overflow: hidden;
     }
     
-    /* Area Peta (Mengambil sisa ruang di atas) */
     #map {
-      flex: 1; /* Peta mengambil ruang yang tersedia */
+      flex: 1;
       width: 100%;
     }
     
-    /* Area Panel Bawah - Bisa di-scroll */
     #panel {
       background: #ffffff;
       padding: 12px;
       text-align: center;
       border-top: 2px solid #ddd;
       box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
-      max-height: 40%; /* Maksimal tinggi panel 40% dari layar */
-      overflow-y: auto; /* Aktifkan scroll vertikal jika konten penuh */
+      max-height: 45%;
+      overflow-y: auto;
     }
     
     .status-text {
@@ -47,18 +45,32 @@
       margin-bottom: 8px;
     }
     
-    .info-text {
-      font-size: 14px;
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+      font-size: 13px;
       margin-bottom: 10px;
-      display: flex;
-      justify-content: space-around;
-      font-weight: bold;
+      background: #f8f9fa;
+      padding: 8px;
+      border-radius: 6px;
+    }
+
+    .info-box span {
+      display: block;
+      font-size: 11px;
+      color: #6c757d;
+    }
+
+    .info-box b {
+      font-size: 14px;
+      color: #007bff;
     }
     
     .button-group {
       display: flex;
       gap: 8px;
-      margin-bottom: 15px;
+      margin-bottom: 12px;
     }
     
     button {
@@ -76,17 +88,16 @@
     #btn-reset { background-color: #dc3545; }
     button:disabled { background-color: #cccccc; cursor: not-allowed; }
 
-    /* Gaya Tabel Rincian Koordinat */
     #tabel-rincian {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 10px;
-      font-size: 12px;
+      margin-top: 5px;
+      font-size: 11px;
       text-align: left;
     }
     #tabel-rincian th, #tabel-rincian td {
       border: 1px solid #ddd;
-      padding: 6px;
+      padding: 5px;
     }
     #tabel-rincian th {
       background-color: #f2f2f2;
@@ -107,9 +118,20 @@
   <div id="panel">
     <div id="text-status" class="status-text">Mencari Sinyal GPS...</div>
     
-    <div class="info-text">
-      <div>Titik: <span id="jml-titik">0</span></div>
-      <div>Luas: <b id="luas-tanah">0</b> m²</div>
+    <!-- GRID INFO: TITIK, KELILING/JARAK, DAN LUAS -->
+    <div class="info-grid">
+      <div class="info-box">
+        <span>Titik</span>
+        <b id="jml-titik">0</b>
+      </div>
+      <div class="info-box">
+        <span>Jarak/Keliling</span>
+        <b id="total-jarak">0</b> m
+      </div>
+      <div class="info-box">
+        <span>Luas Area</span>
+        <b id="luas-tanah">0</b> m²
+      </div>
     </div>
     
     <div class="button-group">
@@ -117,17 +139,18 @@
       <button id="btn-reset" onclick="resetAplikasi()">Reset</button>
     </div>
 
-    <!-- AREA TABEL RINCIAN KOORDINAT (SEPERTI GAMBAR) -->
+    <!-- TABEL RINCIAN LOKASI DAN JARAK -->
     <table id="tabel-rincian">
       <thead>
         <tr>
           <th>No</th>
-          <th>Latitude (Lintang)</th>
-          <th>Longitude (Bujur)</th>
+          <th>Jarak Sisi</th>
+          <th>Latitude</th>
+          <th>Longitude</th>
         </tr>
       </thead>
       <tbody id="body-rincian">
-        <!-- Data titik akan muncul di sini -->
+        <!-- Baris data otomatis bertambah di sini -->
       </tbody>
     </table>
   </div>
@@ -156,12 +179,11 @@
           var lng = position.coords.longitude;
           posisiSekarang = [lat, lng];
 
-          // Aktifkan tombol hijau
           var btnTambah = document.getElementById('btn-tambah');
           btnTambah.disabled = false;
           
           var statusEl = document.getElementById('text-status');
-          statusEl.innerText = "GPS Aktif! Berdirilah di sudut/patok tanah.";
+          statusEl.innerText = "GPS Aktif! Berdirilah di patok tanah.";
           statusEl.style.backgroundColor = "#d4edda";
           statusEl.style.color = "#155724";
 
@@ -174,7 +196,7 @@
         },
         function(error) {
           var statusEl = document.getElementById('text-status');
-          statusEl.innerText = "Gagal Akses GPS. Pastikan Izin Lokasi di Browser HP Aktif!";
+          statusEl.innerText = "Gagal Akses GPS. Izinkan Akses Lokasi!";
           statusEl.style.backgroundColor = "#f8d7da";
           statusEl.style.color = "#721c24";
         },
@@ -184,44 +206,76 @@
       document.getElementById('text-status').innerText = "Browser Tidak Mendukung GPS.";
     }
 
-    // Fungsi Tambah Titik
+    // Fungsi Tambah Titik & Hitung Jarak
     function tambahTitik() {
       if (!posisiSekarang) return;
-      daftarTitik.push(posisiSekarang);
+      
+      var titikBaru = posisiSekarang;
+      var jarakSisi = 0;
 
-      L.circleMarker(posisiSekarang, { color: 'red', radius: 6, fillColor: '#f03', fillOpacity: 0.8 }).addTo(map);
+      // Hitung jarak dari titik sebelumnya ke titik baru menggunakan Turf.js
+      if (daftarTitik.length > 0) {
+        var titikLama = daftarTitik[daftarTitik.length - 1];
+        var p1 = turf.point([titikLama[1], titikLama[0]]);
+        var p2 = turf.point([titikBaru[1], titikBaru[0]]);
+        
+        // Jarak dalam kilometer diubah ke meter (* 1000)
+        jarakSisi = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
+      }
 
-      // Update Angka Titik di Header
+      daftarTitik.push(titikBaru);
+
+      // Gambar Titik di Peta
+      L.circleMarker(titikBaru, { color: 'red', radius: 6, fillColor: '#f03', fillOpacity: 0.8 }).addTo(map);
+
+      // Update Angka Titik
       document.getElementById('jml-titik').innerText = daftarTitik.length;
 
-      // --- BAGIAN BARU: MENAMBAHKAN BARIS KE TABEL RINCIAN ---
+      // Tambah Data ke Tabel
       var tbody = document.getElementById('body-rincian');
-      var row = tbody.insertRow(); // Tambah baris baru di bawah
+      var row = tbody.insertRow();
       var cellNo = row.insertCell(0);
-      var cellLat = row.insertCell(1);
-      var cellLng = row.insertCell(2);
+      var cellJarak = row.insertCell(1);
+      var cellLat = row.insertCell(2);
+      var cellLng = row.insertCell(3);
 
       cellNo.innerHTML = daftarTitik.length;
-      cellLat.innerHTML = posisiSekarang[0].toFixed(8); // Tampilkan 8 angka di belakang koma
-      cellLng.innerHTML = posisiSekarang[1].toFixed(8);
-      // -----------------------------------------------------
+      cellJarak.innerHTML = jarakSisi === 0 ? "-" : jarakSisi.toFixed(1) + " m";
+      cellLat.innerHTML = titikBaru[0].toFixed(7);
+      cellLng.innerHTML = titikBaru[1].toFixed(7);
 
-      // Gambar / Update Area Poligon
+      // Update Gambar Garis/Poligon & Hitung Keliling + Luas
       if (polygonArea) map.removeLayer(polygonArea);
 
       if (daftarTitik.length >= 2) {
         polygonArea = L.polygon(daftarTitik, { color: 'blue' }).addTo(map);
       }
 
-      // Hitung Luas jika titik >= 3
-      if (daftarTitik.length >= 3) {
-        var turfPoints = daftarTitik.map(function(pt) { return [pt[1], pt[0]]; });
-        turfPoints.push(turfPoints[0]);
+      var turfPoints = daftarTitik.map(function(pt) { return [pt[1], pt[0]]; });
 
-        var poly = turf.polygon([turfPoints]);
+      if (daftarTitik.length >= 2) {
+        // Hitung total keliling/jarak berjalan
+        var line = turf.lineString(turfPoints);
+        var totalJarak = turf.length(line, {units: 'kilometers'}) * 1000;
+        
+        // Jika sudah 3 titik atau lebih, tambahkan jarak dari titik terakhir kembali ke titik pertama
+        if (daftarTitik.length >= 3) {
+          var pAwal = turf.point(turfPoints[0]);
+          var pAkhir = turf.point(turfPoints[turfPoints.length - 1]);
+          var jarakTutup = turf.distance(pAkhir, pAwal, {units: 'kilometers'}) * 1000;
+          totalJarak += jarakTutup;
+        }
+
+        document.getElementById('total-jarak').innerText = totalJarak.toFixed(1);
+      }
+
+      if (daftarTitik.length >= 3) {
+        // Hitung Luas
+        var polyPoints = [...turfPoints, turfPoints[0]];
+        var poly = turf.polygon([polyPoints]);
         var area = turf.area(poly);
 
-        document.getElementById('luas-tanah').innerText = area.toFixed(2);
+        document.getElementById('luas-tanah').innerText = area.toFixed(1);
       }
     }
 
