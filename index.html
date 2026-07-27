@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Ukur Tanah GPS - Export Gambar & Logo</title>
+  
+  <!-- CSS Leaflet (Cukup 1 saja di HEAD) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
   <style>
     * {
       box-sizing: border-box;
@@ -21,7 +24,6 @@
       background-color: #fff;
     }
 
-    /* Container Hasil yang akan di-download sebagai Gambar */
     #export-area {
       display: flex;
       flex-direction: column;
@@ -31,7 +33,6 @@
       background: #ffffff;
     }
     
-    /* HEADER LOGO & JUDUL LAPORAN */
     #header-logo {
       display: flex;
       align-items: center;
@@ -173,10 +174,8 @@
 </head>
 <body>
 
-  <!-- AREA UTAMA YANG AKAN DI-DOWNLOAD SEBAGAI GAMBAR -->
   <div id="export-area">
     
-    <!-- HEADER LOGO DAN IDENTITAS LOKASI/USAHA -->
     <div id="header-logo">
       <div class="logo-icon">🗺️</div>
       <div class="header-text">
@@ -185,19 +184,15 @@
       </div>
     </div>
 
-    <!-- PETA -->
     <div id="map"></div>
 
-    <!-- PANEL KONTROL & TABEL HASIL -->
     <div id="panel">
       <div id="text-status" class="status-text">Mencari Sinyal GPS...</div>
       
-      <!-- INDIKATOR JARAK BERJALAN REAL-TIME -->
       <div class="walk-box" id="box-jalan">
         🚶 Jarak jalan dari titik terakhir: <b id="jarak-jalan">0.0</b> meter
       </div>
 
-      <!-- GRID INFO HASIL UKUR -->
       <div class="info-grid">
         <div class="info-box">
           <span>Titik Patok</span>
@@ -220,7 +215,6 @@
         <button id="btn-reset" onclick="resetAplikasi()">Reset</button>
       </div>
 
-      <!-- TABEL RINCIAN -->
       <table id="tabel-rincian">
         <thead>
           <tr>
@@ -237,10 +231,9 @@
 
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"></script>
+  <!-- JS Libraries -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-  <!-- Library untuk Mengkonversi Tampilan HTML Menjadi Gambar PNG -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <script>
@@ -266,7 +259,7 @@
     });
 
     // Deteksi GPS HP
-    if (navigator.geolocation) {
+    if ("geolocation" in navigator) {
       navigator.geolocation.watchPosition(
         function(position) {
           if (isSelesai) return;
@@ -292,7 +285,6 @@
             userMarker.setLatLng(posisiSekarang);
           }
 
-          // Real-time calculation dari titik terakhir
           if (daftarTitik.length > 0) {
             var titikTerakhir = daftarTitik[daftarTitik.length - 1];
             var p1 = turf.point([titikTerakhir[1], titikTerakhir[0]]);
@@ -300,7 +292,6 @@
             var jarakJalan = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
             document.getElementById('jarak-jalan').innerText = jarakJalan.toFixed(1);
 
-            // Auto closing jika jarak ke Titik 0 kurang dari 3 meter
             var titikAwal = daftarTitik[0];
             var pAwal = turf.point([titikAwal[1], titikAwal[0]]);
             var jarakKeTitikAwal = turf.distance(p2, pAwal, {units: 'kilometers'}) * 1000;
@@ -321,12 +312,19 @@
         },
         function(error) {
           var statusEl = document.getElementById('text-status');
-          statusEl.innerText = "Gagal Akses GPS!";
+          var pesan = "Gagal Akses GPS!";
+          if(error.code === 1) pesan = "Akses GPS Ditolak! Aktifkan Izin Lokasi.";
+          else if(error.code === 2) pesan = "Sinyal GPS Tidak Ditemukan!";
+          else if(error.code === 3) pesan = "Waktu GPS Habis (Timeout).";
+          
+          statusEl.innerText = pesan;
           statusEl.style.backgroundColor = "#f8d7da";
           statusEl.style.color = "#721c24";
         },
-        { enableHighAccuracy: true, timeout: 15000 }
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
+    } else {
+      document.getElementById('text-status').innerText = "Perangkat Tidak Mendukung Geolocation!";
     }
 
     function tambahTitik() {
@@ -421,21 +419,18 @@
       }
     }
 
-    // FUNGSI UTAMA: MENYIMPAN HASIL SEBAGAI GAMBAR PNG LANGSUNG KE HP
     function downloadSebagaiGambar() {
       var btnDownload = document.getElementById('btn-download');
       btnDownload.innerText = "⏳ Memproses Gambar...";
       btnDownload.disabled = true;
 
-      // Ambil elemen seluruh laporan
       var exportElement = document.getElementById('export-area');
 
       html2canvas(exportElement, {
         useCORS: true,
         allowTaint: true,
-        scale: 2 // Kualitas gambar tinggi
+        scale: 2
       }).then(function(canvas) {
-        // Buat file PNG dan unduh otomatis ke HP
         var imageURI = canvas.toDataURL("image/png");
         var link = document.createElement('a');
         link.download = 'Laporan_Ukuran_Tanah_' + new Date().toISOString().slice(0,10) + '.png';
@@ -447,7 +442,7 @@
         btnDownload.innerText = "📸 Simpan Gambar ke HP";
         btnDownload.disabled = false;
       }).catch(function(err) {
-        alert("Gagal mengunduh gambar. Silakan gunakan tangkapan layar (screenshot) HP Anda.");
+        alert("Gagal mengunduh gambar. Silakan gunakan screenshot HP Anda.");
         btnDownload.innerText = "📸 Simpan Gambar ke HP";
         btnDownload.disabled = false;
       });
