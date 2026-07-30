@@ -299,21 +299,36 @@
         }
 
         // Hitung jarak jalan dari titik terakhir
-        if (daftarTitik.length > 0) {
-          var titikTerakhir = daftarTitik[daftarTitik.length - 1];
-          var p1 = turf.point([titikTerakhir[1], titikTerakhir[0]]);
-          var p2 = turf.point([lng, lat]);
-          var jarakJalan = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
-          document.getElementById('jarak-jalan').innerText = jarakJalan.toFixed(1);
+if (daftarTitik.length > 0) {
+  var titikTerakhir = daftarTitik[daftarTitik.length - 1];
+  var p1 = turf.point([titikTerakhir[1], titikTerakhir[0]]);
+  var p2 = turf.point([lng, lat]);
+  
+  // Hitung jarak riil dari titik patok terakhir (dalam meter)
+  var jarakJalan = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
 
-          // Garis bantu live
-          if (lineLive) map.removeLayer(lineLive);
-          lineLive = L.polyline([titikTerakhir, posisiSekarang], {
-            color: '#ffff00',
-            weight: 3,
-            dashArray: '5, 5'
-          }).addTo(map);
-        }
+  // --- FILTER GPS DRIFT ---
+  // Jika pergerakan masih di bawah 1.5 meter, anggap user masih diam di patok
+  var THRESHOLD_DRIFT = 1.5; 
+
+  if (jarakJalan < THRESHOLD_DRIFT) {
+    document.getElementById('jarak-jalan').innerText = "0.0";
+    
+    // Hapus garis kuning jika masih di area patok yang sama
+    if (lineLive) map.removeLayer(lineLive);
+  } else {
+    // Tampilkan jarak jika benar-benar sudah melangkah pergi
+    document.getElementById('jarak-jalan').innerText = jarakJalan.toFixed(1);
+
+    // Update garis bantu live hanya jika sudah bergerak
+    if (lineLive) map.removeLayer(lineLive);
+    lineLive = L.polyline([titikTerakhir, posisiSekarang], {
+      color: '#ffff00',
+      weight: 3,
+      dashArray: '5, 5'
+    }).addTo(map);
+  }
+}
       },
       function(error) {
         var statusEl = document.getElementById('text-status');
