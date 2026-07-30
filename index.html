@@ -233,224 +233,243 @@
 
   <!-- JS Libraries -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-  <script>
-    var map;
-    var userMarker;
-    var polygonArea;
-    var lineLive;
-    var daftarTitik = [];
-    var posisiSekarang = null;
-    var isSelesai = false;
+<script>
+  var map;
+  var userMarker, accuracyCircle;
+  var polygonArea, lineLive;
+  var daftarTitik = [];
+  var posisiSekarang = null;
+  var akurasiSekarang = 999;
+  var isSelesai = false;
 
-    // Layer Satelit
-    var petaSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri',
-      crossOrigin: true,
-      maxZoom: 19
-    });
+  // Layer Satelit ESRI
+  var petaSatelit = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri',
+    crossOrigin: true,
+    maxZoom: 19
+  });
 
-    map = L.map('map', {
-      center: [-6.200000, 106.816666],
-      zoom: 15,
-      layers: [petaSatelit]
-    });
+  map = L.map('map', {
+    center: [-6.200000, 106.816666],
+    zoom: 18,
+    layers: [petaSatelit]
+  });
 
-    // Deteksi GPS HP
-    if ("geolocation" in navigator) {
-      navigator.geolocation.watchPosition(
-        function(position) {
-          if (isSelesai) return;
+  // Deteksi GPS HP dengan Filter Akurasi
+  if ("geolocation" in navigator) {
+    navigator.geolocation.watchPosition(
+      function(position) {
+        if (isSelesai) return;
 
-          var lat = position.coords.latitude;
-          var lng = position.coords.longitude;
-          posisiSekarang = [lat, lng];
+        var lat = position.coords.latitude;
+        var lng = position.coords.longitude;
+        akurasiSekarang = position.coords.accuracy; // Akurasi dalam meter
+        posisiSekarang = [lat, lng];
 
-          document.getElementById('btn-tambah').disabled = false;
-          if (daftarTitik.length >= 2) {
-            document.getElementById('btn-selesai').disabled = false;
-          }
-          
-          var statusEl = document.getElementById('text-status');
-          statusEl.innerText = "GPS Aktif! Tandai titik patok Anda.";
+        document.getElementById('btn-tambah').disabled = false;
+        if (daftarTitik.length >= 2) {
+          document.getElementById('btn-selesai').disabled = false;
+        }
+        
+        var statusEl = document.getElementById('text-status');
+        
+        // Indikator Akurasi GPS
+        if (akurasiSekarang > 10) {
+          statusEl.innerText = `⚠️ Sinyal GPS Lemah (Akurasi: ±${akurasiSekarang.toFixed(0)}m). Tunggu sebentar...`;
+          statusEl.style.backgroundColor = "#fff3cd";
+          statusEl.style.color = "#856404";
+        } else {
+          statusEl.innerText = `✅ GPS Akurat (Akurasi: ±${akurasiSekarang.toFixed(1)}m). Siap tandai patok!`;
           statusEl.style.backgroundColor = "#d4edda";
           statusEl.style.color = "#155724";
-
-          if (!userMarker) {
-            userMarker = L.marker(posisiSekarang).addTo(map);
-            map.setView(posisiSekarang, 18);
-          } else {
-            userMarker.setLatLng(posisiSekarang);
-          }
-
-          if (daftarTitik.length > 0) {
-            var titikTerakhir = daftarTitik[daftarTitik.length - 1];
-            var p1 = turf.point([titikTerakhir[1], titikTerakhir[0]]);
-            var p2 = turf.point([lng, lat]);
-            var jarakJalan = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
-            document.getElementById('jarak-jalan').innerText = jarakJalan.toFixed(1);
-
-            var titikAwal = daftarTitik[0];
-            var pAwal = turf.point([titikAwal[1], titikAwal[0]]);
-            var jarakKeTitikAwal = turf.distance(p2, pAwal, {units: 'kilometers'}) * 1000;
-
-            if (daftarTitik.length >= 3 && jarakKeTitikAwal < 3.0) {
-              statusEl.innerText = "🎯 Anda sudah di Titik Nol! Otomatis menyelesaikan...";
-              kembaliKeTitikNol();
-              return;
-            }
-
-            if (lineLive) map.removeLayer(lineLive);
-            lineLive = L.polyline([titikTerakhir, posisiSekarang], {
-              color: '#ffff00',
-              weight: 4,
-              dashArray: '6, 8'
-            }).addTo(map);
-          }
-        },
-        function(error) {
-          var statusEl = document.getElementById('text-status');
-          var pesan = "Gagal Akses GPS!";
-          if(error.code === 1) pesan = "Akses GPS Ditolak! Aktifkan Izin Lokasi.";
-          else if(error.code === 2) pesan = "Sinyal GPS Tidak Ditemukan!";
-          else if(error.code === 3) pesan = "Waktu GPS Habis (Timeout).";
-          
-          statusEl.innerText = pesan;
-          statusEl.style.backgroundColor = "#f8d7da";
-          statusEl.style.color = "#721c24";
-        },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-      );
-    } else {
-      document.getElementById('text-status').innerText = "Perangkat Tidak Mendukung Geolocation!";
-    }
-
-    function tambahTitik() {
-      if (!posisiSekarang || isSelesai) return;
-      
-      var titikBaru = posisiSekarang;
-      var jarakSisi = 0;
-
-      if (daftarTitik.length > 0) {
-        var titikLama = daftarTitik[daftarTitik.length - 1];
-        var p1 = turf.point([titikLama[1], titikLama[0]]);
-        var p2 = turf.point([titikBaru[1], titikBaru[0]]);
-        jarakSisi = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
-      }
-
-      daftarTitik.push(titikBaru);
-
-      var warnaDot = (daftarTitik.length === 1) ? '#00ff00' : '#ffff00';
-      L.circleMarker(titikBaru, { color: 'red', radius: 7, fillColor: warnaDot, fillOpacity: 1 }).addTo(map);
-
-      if (lineLive) map.removeLayer(lineLive);
-      document.getElementById('jarak-jalan').innerText = "0.0";
-      document.getElementById('jml-titik').innerText = daftarTitik.length;
-
-      tambahBarisTabel(daftarTitik.length, jarakSisi, titikBaru[0], titikBaru[1]);
-      updateKalkulasi();
-    }
-
-    function kembaliKeTitikNol() {
-      if (daftarTitik.length < 3 || isSelesai) return;
-
-      isSelesai = true;
-
-      var titikTerakhir = daftarTitik[daftarTitik.length - 1];
-      var titikAwal = daftarTitik[0];
-      var p1 = turf.point([titikTerakhir[1], titikTerakhir[0]]);
-      var p2 = turf.point([titikAwal[1], titikAwal[0]]);
-      var jarakPenutup = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
-
-      tambahBarisTabel("0 (Selesai)", jarakPenutup, titikAwal[0], titikAwal[1]);
-
-      if (lineLive) map.removeLayer(lineLive);
-      if (polygonArea) map.removeLayer(polygonArea);
-
-      polygonArea = L.polygon(daftarTitik, { color: '#00ff00', weight: 4, fillColor: '#ffff00', fillOpacity: 0.5 }).addTo(map);
-      map.fitBounds(polygonArea.getBounds(), { padding: [30, 30] });
-
-      updateKalkulasi();
-
-      var statusEl = document.getElementById('text-status');
-      statusEl.innerText = "✅ PENGUKURAN SELESAI!";
-      statusEl.style.backgroundColor = "#d4edda";
-      statusEl.style.color = "#155724";
-
-      document.getElementById('box-jalan').style.display = 'none';
-      document.getElementById('btn-tambah').style.display = 'none';
-      document.getElementById('btn-selesai').style.display = 'none';
-      document.getElementById('btn-download').style.display = 'inline-block';
-    }
-
-    function tambahBarisTabel(no, jarak, lat, lng) {
-      var tbody = document.getElementById('body-rincian');
-      var row = tbody.insertRow();
-      row.insertCell(0).innerHTML = no;
-      row.insertCell(1).innerHTML = jarak === 0 ? "-" : jarak.toFixed(1) + " m";
-      row.insertCell(2).innerHTML = lat.toFixed(7);
-      row.insertCell(3).innerHTML = lng.toFixed(7);
-    }
-
-    function updateKalkulasi() {
-      var turfPoints = daftarTitik.map(function(pt) { return [pt[1], pt[0]]; });
-
-      if (daftarTitik.length >= 2) {
-        var line = turf.lineString(turfPoints);
-        var totalJarak = turf.length(line, {units: 'kilometers'}) * 1000;
-        
-        if (daftarTitik.length >= 3) {
-          var pAwal = turf.point(turfPoints[0]);
-          var pAkhir = turf.point(turfPoints[turfPoints.length - 1]);
-          totalJarak += (turf.distance(pAkhir, pAwal, {units: 'kilometers'}) * 1000);
         }
 
-        document.getElementById('total-jarak').innerText = totalJarak.toFixed(1);
-      }
+        // Tampilkan Marker & Lingkaran Akurasi
+        if (!userMarker) {
+          userMarker = L.marker(posisiSekarang).addTo(map);
+          accuracyCircle = L.circle(posisiSekarang, { radius: akurasiSekarang, color: '#17a2b8', fillOpacity: 0.15 }).addTo(map);
+          map.setView(posisiSekarang, 19);
+        } else {
+          userMarker.setLatLng(posisiSekarang);
+          accuracyCircle.setLatLng(posisiSekarang);
+          accuracyCircle.setRadius(akurasiSekarang);
+        }
 
+        // Hitung jarak jalan dari titik terakhir
+        if (daftarTitik.length > 0) {
+          var titikTerakhir = daftarTitik[daftarTitik.length - 1];
+          var p1 = turf.point([titikTerakhir[1], titikTerakhir[0]]);
+          var p2 = turf.point([lng, lat]);
+          var jarakJalan = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
+          document.getElementById('jarak-jalan').innerText = jarakJalan.toFixed(1);
+
+          // Garis bantu live
+          if (lineLive) map.removeLayer(lineLive);
+          lineLive = L.polyline([titikTerakhir, posisiSekarang], {
+            color: '#ffff00',
+            weight: 3,
+            dashArray: '5, 5'
+          }).addTo(map);
+        }
+      },
+      function(error) {
+        var statusEl = document.getElementById('text-status');
+        var pesan = "Gagal Akses GPS!";
+        if(error.code === 1) pesan = "Akses GPS Ditolak! Aktifkan Izin Lokasi.";
+        else if(error.code === 2) pesan = "Sinyal GPS Tidak Ditemukan!";
+        else if(error.code === 3) pesan = "Waktu GPS Habis (Timeout).";
+        
+        statusEl.innerText = pesan;
+        statusEl.style.backgroundColor = "#f8d7da";
+        statusEl.style.color = "#721c24";
+      },
+      { 
+        enableHighAccuracy: true, 
+        timeout: 10000, 
+        maximumAge: 0 
+      }
+    );
+  } else {
+    document.getElementById('text-status').innerText = "Perangkat Tidak Mendukung Geolocation!";
+  }
+
+  function tambahTitik() {
+    if (!posisiSekarang || isSelesai) return;
+
+    if (akurasiSekarang > 15) {
+      if (!confirm(`Akurasi GPS saat ini agak buruk (±${akurasiSekarang.toFixed(0)}m). Tetap tambahkan titik?`)) {
+        return;
+      }
+    }
+    
+    var titikBaru = posisiSekarang;
+    var jarakSisi = 0;
+
+    if (daftarTitik.length > 0) {
+      var titikLama = daftarTitik[daftarTitik.length - 1];
+      var p1 = turf.point([titikLama[1], titikLama[0]]);
+      var p2 = turf.point([titikBaru[1], titikBaru[0]]);
+      jarakSisi = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
+    }
+
+    daftarTitik.push(titikBaru);
+
+    var warnaDot = (daftarTitik.length === 1) ? '#00ff00' : '#ffff00';
+    L.circleMarker(titikBaru, { color: 'red', radius: 6, fillColor: warnaDot, fillOpacity: 1 }).addTo(map);
+
+    if (lineLive) map.removeLayer(lineLive);
+    document.getElementById('jarak-jalan').innerText = "0.0";
+    document.getElementById('jml-titik').innerText = daftarTitik.length;
+
+    tambahBarisTabel(daftarTitik.length, jarakSisi, titikBaru[0], titikBaru[1]);
+    updateKalkulasi();
+  }
+
+  function kembaliKeTitikNol() {
+    if (daftarTitik.length < 3 || isSelesai) return;
+
+    isSelesai = true;
+
+    var titikTerakhir = daftarTitik[daftarTitik.length - 1];
+    var titikAwal = daftarTitik[0];
+    var p1 = turf.point([titikTerakhir[1], titikTerakhir[0]]);
+    var p2 = turf.point([titikAwal[1], titikAwal[0]]);
+    var jarakPenutup = turf.distance(p1, p2, {units: 'kilometers'}) * 1000;
+
+    tambahBarisTabel("0 (Selesai)", jarakPenutup, titikAwal[0], titikAwal[1]);
+
+    if (lineLive) map.removeLayer(lineLive);
+    if (polygonArea) map.removeLayer(polygonArea);
+
+    polygonArea = L.polygon(daftarTitik, { color: '#00ff00', weight: 4, fillColor: '#28a745', fillOpacity: 0.4 }).addTo(map);
+    map.fitBounds(polygonArea.getBounds(), { padding: [30, 30] });
+
+    updateKalkulasi();
+
+    var statusEl = document.getElementById('text-status');
+    statusEl.innerText = "✅ PENGUKURAN SELESAI!";
+    statusEl.style.backgroundColor = "#d4edda";
+    statusEl.style.color = "#155724";
+
+    document.getElementById('box-jalan').style.display = 'none';
+    document.getElementById('btn-tambah').style.display = 'none';
+    document.getElementById('btn-selesai').style.display = 'none';
+    document.getElementById('btn-download').style.display = 'inline-block';
+  }
+
+  function tambahBarisTabel(no, jarak, lat, lng) {
+    var tbody = document.getElementById('body-rincian');
+    var row = tbody.insertRow();
+    row.insertCell(0).innerHTML = no;
+    row.insertCell(1).innerHTML = jarak === 0 ? "-" : jarak.toFixed(1) + " m";
+    row.insertCell(2).innerHTML = lat.toFixed(7);
+    row.insertCell(3).innerHTML = lng.toFixed(7);
+  }
+
+  function updateKalkulasi() {
+    var turfPoints = daftarTitik.map(function(pt) { return [pt[1], pt[0]]; });
+
+    if (daftarTitik.length >= 2) {
+      var line = turf.lineString(turfPoints);
+      var totalJarak = turf.length(line, {units: 'kilometers'}) * 1000;
+      
       if (daftarTitik.length >= 3) {
-        var polyPoints = [...turfPoints, turfPoints[0]];
-        var poly = turf.polygon([polyPoints]);
-        var area = turf.area(poly);
-
-        document.getElementById('luas-tanah').innerText = area.toFixed(1);
+        var pAwal = turf.point(turfPoints[0]);
+        var pAkhir = turf.point(turfPoints[turfPoints.length - 1]);
+        totalJarak += (turf.distance(pAkhir, pAwal, {units: 'kilometers'}) * 1000);
       }
+
+      document.getElementById('total-jarak').innerText = totalJarak.toFixed(1);
     }
 
-    function downloadSebagaiGambar() {
-      var btnDownload = document.getElementById('btn-download');
-      btnDownload.innerText = "⏳ Memproses Gambar...";
-      btnDownload.disabled = true;
+    if (daftarTitik.length >= 3) {
+      // Pastikan poligon tertutup rapat untuk menghitung Luas Geodesik dengan Turf
+      var polyPoints = [...turfPoints, turfPoints[0]];
+      var poly = turf.polygon([polyPoints]);
+      
+      // Turf.area() menghitung area geodesik di atas kurva bumi (WGS84) secara otomatis
+      var area = turf.area(poly);
 
-      var exportElement = document.getElementById('export-area');
-
-      html2canvas(exportElement, {
-        useCORS: true,
-        allowTaint: true,
-        scale: 2
-      }).then(function(canvas) {
-        var imageURI = canvas.toDataURL("image/png");
-        var link = document.createElement('a');
-        link.download = 'Laporan_Ukuran_Tanah_' + new Date().toISOString().slice(0,10) + '.png';
-        link.href = imageURI;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        btnDownload.innerText = "📸 Simpan Gambar ke HP";
-        btnDownload.disabled = false;
-      }).catch(function(err) {
-        alert("Gagal mengunduh gambar. Silakan gunakan screenshot HP Anda.");
-        btnDownload.innerText = "📸 Simpan Gambar ke HP";
-        btnDownload.disabled = false;
-      });
+      document.getElementById('luas-tanah').innerText = area.toFixed(1);
     }
+  }
 
-    function resetAplikasi() {
-      location.reload();
-    }
+  function downloadSebagaiGambar() {
+    var btnDownload = document.getElementById('btn-download');
+    btnDownload.innerText = "⏳ Memproses Gambar...";
+    btnDownload.disabled = true;
+
+    var exportElement = document.getElementById('export-area');
+
+    html2canvas(exportElement, {
+      useCORS: true,
+      allowTaint: true,
+      scale: 2
+    }).then(function(canvas) {
+      var imageURI = canvas.toDataURL("image/png");
+      var link = document.createElement('a');
+      link.download = 'Laporan_Ukuran_Tanah_' + new Date().toISOString().slice(0,10) + '.png';
+      link.href = imageURI;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      btnDownload.innerText = "📸 Simpan Gambar ke HP";
+      btnDownload.disabled = false;
+    }).catch(function(err) {
+      alert("Gagal mengunduh gambar. Silakan gunakan screenshot HP Anda.");
+      btnDownload.innerText = "📸 Simpan Gambar ke HP";
+      btnDownload.disabled = false;
+    });
+  }
+
+  function resetAplikasi() {
+    location.reload();
+  }
+</script>
   </script>
 </body>
 </html>
