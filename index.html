@@ -7,6 +7,8 @@
   
   <!-- CSS Leaflet (Cukup 1 saja di HEAD) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#000000">
   
   <style>
     * {
@@ -485,6 +487,12 @@ if (daftarTitik.length > 0) {
     location.reload();
   }
 </script>
+  <script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then(() => console.log('Service Worker Terdaftar!'))
+      .catch((err) => console.log('Gagal register SW:', err));
+  }
   </script>
 </body>
 </html>
